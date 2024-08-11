@@ -1,0 +1,18 @@
+{
+	"luau-lsp.require.mode": "relativeToFile",
+	"luau-lsp.require.directoryAliases": {
+		"@lune/": "~/.lune/.typedefs/0.8.6/",
+	},
+	"luau-lsp.ignoreGlobs": [
+		"**/_Index/**",
+		"Vendor/Icon/Packages/**",
+	],
+	"luau-lsp.completion.imports.ignoreGlobs": [
+		"**/_Index/**",
+		"**/benchmarks/**",
+	],
+	"roblox-ui.explorer.showDataModel": true,
+	"roblox-ui.explorer.showFilePaths": true,
+	"roblox-ui.sourcemap.rojoProjectFile": "place.project.json",
+	// "luau-lsp.types.definitionFiles": [],
+}
