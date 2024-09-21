@@ -54,55 +54,71 @@ export type Error = {
 	name: string,
 	stack: string?,
 }
-type ErrorPrivate = Error & {__stack: string?}
-
-local DEFAULT_NAME = "Error"
+type Private = Error & {__stack: string?}
 
 local Error = {}
+
+local DEFAULT_NAME = "Error"
 Error.__index = Error
-function Error:__tostring()
+Error.__tostring = function(self)
+	-- Luau FIXME: I can't cast to Error or Object here: Type 'Object' could not be converted into '{ @metatable *unknown*, {|  |} }'
 	return getmetatable(Error :: never).__tostring(self)
 end
 
-local function RecalculateStackTrace(exception: Error)
-	local self = exception :: ErrorPrivate
-	local message = self.message
-	self.stack =
-		`{self.name or DEFAULT_NAME}{if message and message ~= "" then `: {message}` else ""}\n{self.__stack or ""}`
+local function RecalculateStacktrace(self: Error)
+	local exception = self :: Private
+	local message = exception.message
+	local name = exception.name or DEFAULT_NAME
+
+	local errorName = name .. (if message and message ~= "" then ": " .. message else "")
+	local stack = exception.__stack or ""
+
+	local newStackString = string.split(stack, "\n")
+	local length = #newStackString
+	if newStackString[length] == "" then
+		newStackString[length] = nil
+	end
+
+	for index, stackLine in newStackString do
+		newStackString[index] = "\tat " .. stackLine
+	end
+
+	exception.stack = errorName .. "\n" .. table.concat(newStackString, "\n")
 end
-local function CaptureStackTrace(exception: Error, level: number, options: Function?)
-	local self = exception :: ErrorPrivate
+
+local function CaptureStackTrace(self: Error, level: number, options: Function?)
+	local exception = self :: Private
 	if type(options) == "function" then
 		local stack = debug.traceback(nil, level)
 		local functionName: string = debug.info(options, "n")
 		local sourceFilePath: string = debug.info(options, "s")
 
-		local spacedSourceFilePath = string.gsub(sourceFilePath, "([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1")
-		local stackTraceLinePattern = `{spacedSourceFilePath}:%d* function {functionName}`
-
-		local start = string.find(stack, stackTraceLinePattern)
-		local finish: number? = nil
-
-		if start then
+		local escapedSourceFilePath = string.gsub(sourceFilePath, "([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1")
+		local start = string.find(stack, escapedSourceFilePath .. ":%d* function " .. functionName)
+		local finish = nil
+		if start ~= nil then
 			start, finish = string.find(stack, "\n", start + 1)
 		end
 
-		if finish then
+		if finish ~= nil then
 			stack = string.sub(stack, finish + 1)
 		end
 
-		self.__stack = stack
+		exception.__stack = stack
 	else
-		self.__stack = debug.traceback(nil, level)
+		exception.__stack = debug.traceback(nil, level)
 	end
-	RecalculateStackTrace(self)
+
+	RecalculateStacktrace(exception)
 end
 
+-- ROBLOX NOTE: extracted __createError function so that both Error.new() and Error() can capture the stack trace at the same depth
 local function CreateError(message: string?): Error
 	local self: Error = setmetatable({
 		message = message or "";
 		name = DEFAULT_NAME;
 	}, Error) :: never
+
 	CaptureStackTrace(self, 4)
 	return self
 end
@@ -139,17 +155,35 @@ end
 Error.CaptureStackTrace = Error.captureStackTrace
 
 return setmetatable(Error, {
-	__call = function(_, ...)
-		return CreateError(...)
+	__call = function(_, message: string?)
+		return CreateError(message)
 	end;
+	__tostring = function(self: Error)
+		local stack = self.stack
+		if stack and stack ~= "" then
+			return stack
+		end
 
-	__tostring = function(self)
 		local name = self.name
 		if name ~= nil then
 			local message = self.message
-			return if message and message ~= "" then `{name}: {message}` else tostring(name)
+			if message and message ~= "" then
+				return string.format("%*: %*", name, message)
+			end
+
+			return tostring(name)
 		end
 
 		return DEFAULT_NAME
 	end;
-})
+}) :: typeof(setmetatable(
+	{} :: {
+		new: (message: string?) -> Error,
+		captureStackTrace: (exception: Error, options: Function?) -> (),
+		CaptureStackTrace: (exception: Error, options: Function?) -> (),
+	},
+	{} :: {
+		__call: (_: any, message: string?) -> Error,
+		__tostring: (self: Error) -> string,
+	}
+))

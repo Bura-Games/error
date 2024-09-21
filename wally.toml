@@ -1,9 +1,9 @@
 [package]
-name = "howmanysmall/error"                                                                # TODO: Change to Bura Games org
-version = "1.0.0"
-registry = "https://github.com/UpliftGames/wally-index"
-realm = "shared"
 exclude = ["**"]
 include = ["src", "src/**", "wally.toml", "wally.lock", "default.project.json", "LICENSE"]
+name = "howmanysmall/error"                                                                # TODO: Change to Bura Games org
+realm = "shared"
+registry = "https://github.com/UpliftGames/wally-index"
+version = "1.1.0"
 
 [dependencies]
